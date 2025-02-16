@@ -6,18 +6,11 @@ import { CreateLogger, LogContext, ExtendedMetaType, LogLevel } from '../interfa
 import { createLogMessage } from '../utils/utils';
 
 // Helper to clean internal Winston symbols
-const cleanMeta = (meta: Record<string, unknown>) => {
-  const cleanMeta = { ...meta };
-
-  // Remove internal Winston symbols
-  Object.getOwnPropertySymbols(meta).forEach((symbol) => {
-    delete cleanMeta[symbol as unknown as string];
-  });
-  return cleanMeta;
-};
+const cleanMeta = (meta: Record<string, unknown>): Record<string, unknown> =>
+  Object.fromEntries(Object.entries(meta).filter(([key]) => typeof key === 'string'));
 
 export const createWinstonLogger: CreateLogger = (options, parentContext) => {
-  const { serviceName, lightMode = false, newLineEOL = false, level } = options;
+  const { serviceName, lightMode = false, newLineEOL = false, level = 'info' } = options;
 
   let logContext: LogContext = parentContext ?? {
     traceIds: { genesis: 'local' },
@@ -26,8 +19,10 @@ export const createWinstonLogger: CreateLogger = (options, parentContext) => {
     prefix: ['Main']
   };
 
+  const errorRegex = /(error|fatal)/i;
+
   const winstonLogger = winston.createLogger({
-    level: level ?? 'info',
+    level,
     transports: [
       new winston.transports.Console({
         format: winston.format.combine(
@@ -35,40 +30,35 @@ export const createWinstonLogger: CreateLogger = (options, parentContext) => {
           winston.format.timestamp(),
           winston.format.prettyPrint(),
           winston.format.printf(({ level, message: header, timestamp, ...meta }) => {
-            const errorRegex = /(error|fatal)/i;
-
             const messageHeader = `${chalk.green(timestamp)} [${level}]: ${header}\n`;
 
-            // Assert meta to the extended type
+            // Ensure meta is of type ExtendedMetaType
             const typedMeta = meta as ExtendedMetaType;
 
             // Remove Winston symbols for clear logs
-            let cleanedMeta = cleanMeta(typedMeta);
+            let { log }: Record<string, any> = cleanMeta(typedMeta);
 
-            const { log }: Record<string, any> = cleanedMeta;
+            const logMetadata = !lightMode
+              ? {
+                  service: serviceName,
+                  traceIds: logContext.traceIds,
+                  ddtags: logContext.ddtags,
+                  ...logContext.extraMetadata
+                }
+              : {};
 
-            const logMetadata = {
-              service: serviceName,
-              traceIds: logContext.traceIds,
-              ddtags: logContext.ddtags,
-              ...logContext.extraMetadata
-            };
-
-            const loggableData = {
-              ...log,
-              ...(!lightMode && { ...logMetadata })
-            };
+            const loggableData = { ...log, ...logMetadata };
 
             // Extract and log the error stack trace if present
             if (loggableData.error instanceof Error || errorRegex.test(level)) {
               return `${messageHeader}${chalk.red(util.inspect(loggableData, { depth: null }))}${newLineEOL ? '\n' : ''}`;
             }
 
-            const metaString = Object.keys(log!).length
+            const metaString = Object.keys(log).length
               ? util.inspect(loggableData, { colors: true, depth: null })
               : '';
 
-            const extraSpace = Object.keys(cleanedMeta).length && newLineEOL ? '\n' : '';
+            const extraSpace = Object.keys(log).length && newLineEOL ? '\n' : '';
 
             return `${messageHeader}${metaString}${extraSpace}`;
           })
@@ -85,10 +75,10 @@ export const createWinstonLogger: CreateLogger = (options, parentContext) => {
     };
   };
 
-  const branch = (branchOptions: { context: string }) =>
+  const branch = ({ context }: { context: string }) =>
     createWinstonLogger(options, {
       ...logContext,
-      prefix: [...logContext.prefix, branchOptions.context]
+      prefix: logContext.prefix.concat(context)
     });
 
   return {
