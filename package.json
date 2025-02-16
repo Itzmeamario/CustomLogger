@@ -1,0 +1,41 @@
+{
+  "name": "custom-logger",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "build": "rimraf dist && tsc -p tsconfig.build.json",
+    "test": "jest --coverage",
+    "lint": "eslint 'src/**/*.{ts,tsx}'",
+    "format": "prettier --write 'src/**/*.{ts,tsx}'"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "devDependencies": {
+    "@jest/globals": "^29.7.0",
+    "@types/jest": "^29.5.14",
+    "eslint": "^9.20.1",
+    "eslint-config-prettier": "^10.0.1",
+    "eslint-plugin-prettier": "^5.2.3",
+    "jest": "^29.7.0",
+    "nodemon": "^3.1.9",
+    "prettier": "^3.5.1",
+    "rimraf": "^6.0.1",
+    "ts-jest": "^29.2.5",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.7.3"
+  },
+  "dependencies": {
+    "@newrelic/pino-enricher": "^1.1.1",
+    "@types/node": "^22.13.4",
+    "chalk": "^5.4.1",
+    "dotenv": "^16.4.7",
+    "newrelic": "^12.13.0",
+    "pino": "^9.6.0",
+    "pino-datadog-transport": "^3.0.6",
+    "pino-http-send": "^0.4.2",
+    "pino-pretty": "^13.0.0",
+    "winston": "^3.17.0"
+  }
+}
