@@ -10,11 +10,11 @@ const cleanMeta = (meta: Record<string, unknown>): Record<string, unknown> =>
   Object.fromEntries(Object.entries(meta).filter(([key]) => typeof key === 'string'));
 
 export const createWinstonLogger: CreateLogger = (options, parentContext) => {
-  const { serviceName, lightMode = false, newLineEOL = false, level = 'info' } = options;
+  const { serviceName, lightMode = false, newLineEOL = false, level = 'info', env } = options;
 
   let logContext: LogContext = parentContext ?? {
     traceIds: { genesis: 'local' },
-    ddtags: `service:${serviceName}`,
+    ddtags: `service:${serviceName},env:${env}`,
     extraMetadata: {},
     prefix: ['Main']
   };
@@ -28,7 +28,6 @@ export const createWinstonLogger: CreateLogger = (options, parentContext) => {
         format: winston.format.combine(
           winston.format.colorize(),
           winston.format.timestamp(),
-          winston.format.prettyPrint(),
           winston.format.printf(({ level, message: header, timestamp, ...meta }) => {
             const messageHeader = `${chalk.green(timestamp)} [${level}]: ${header}\n`;
 
