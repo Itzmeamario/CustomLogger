@@ -128,9 +128,6 @@ export const createWinstonLogger: CreateLogger = (options, parentContext) => {
       // Validate tags: key must be alphanumeric with optional "_", "-", or ".", and value allows multiple colons
       const validTags = newTags.filter((tag) => /^[a-zA-Z0-9_.-]+:.+$/.test(tag));
 
-      // Ensure base ddtags with service and env
-      logContext.ddtags = `service:${serviceName},env:${env}`;
-
       // Append valid tags
       logContext.ddtags += `,${validTags.join(',')}`;
     },
