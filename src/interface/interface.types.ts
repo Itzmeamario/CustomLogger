@@ -26,6 +26,18 @@ export type LogFunction = (
   meta?: Record<string, any>
 ) => void;
 
+export type TraceContext = {
+  genesis?: string;
+  tracehistory?: string;
+  traceparent?: string;
+} & Record<string, any>;
+
+export type Instigator = {
+  email: string;
+  id: string;
+  role?: string;
+};
+
 export interface Logger {
   log: LogFunction;
   info: LogFunction;
@@ -35,13 +47,13 @@ export interface Logger {
   debug: LogFunction;
   trace: LogFunction;
 
-  branch: (branchOptions: { context: string }) => Logger;
+  branch: (branchOptions: { scope: string }) => Logger;
 
-  setTraceId: (key: string, value: string) => void;
-  removeTraceId: (key: string) => void;
-  setDdtags: (tags: string) => void;
-  addExtraMetadata: (key: string, value: any) => void;
-  removeExtraMetadata: (key: string) => void;
+  setTraceContext: ({ genesis, tracehistory, traceparent }: TraceContext) => void;
+  addAdditionalTraceContext: (key: string, value: any) => void;
+  setInstigator: ({ email, id, role }: Instigator) => void;
+  addDdtags: (tags: string | string[]) => void;
+  addMetadata: (key: string, value: any) => void;
   getCurrentLogContext: () => LogContext;
 }
 
@@ -57,11 +69,20 @@ export interface LoggerOptions {
   newLineEOL?: boolean;
 }
 
+export type Log = {
+  level: string;
+  service: string;
+  context: string;
+  logInfo?: Record<string, any>;
+  timestamp: string;
+} & LogContext;
+
 export interface LogContext {
-  traceIds: Record<string, string>;
+  metadata?: Record<string, any>;
+  traceContext?: TraceContext;
+  instigator?: Instigator;
   ddtags: string;
-  extraMetadata: Record<string, any>;
-  prefix: string[];
+  scope: string[];
 }
 
 export type CreateLogger = (options: LoggerOptions, parentContext?: LogContext) => Logger;

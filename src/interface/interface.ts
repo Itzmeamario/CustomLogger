@@ -1,4 +1,4 @@
-import { Logger, LogLevel, LogFunction } from './interface.types';
+import { Logger, LogLevel, LogFunction, LogContext } from './interface.types';
 
 type BaseLogger = Record<LogLevel, LogFunction>;
 
@@ -8,9 +8,10 @@ export const createLogger = (
   env: string,
   branch?: string
 ): Logger => {
-  let traceIds: Record<string, string> = {};
-  let extraMetadata: Record<string, any> = {};
-  let ddtags = '';
+  const logContext: LogContext = {
+    ddtags: '',
+    scope: ['Main']
+  };
 
   const formatMessage = () => `[${serviceName}][${env}]${branch ? `[${branch}]` : ''}`;
 
@@ -33,34 +34,50 @@ export const createLogger = (
     debug: log('debug'),
     trace: log('trace'),
 
-    branch: ({ context }: { context: string }): Logger =>
-      createLogger(baseLogger, serviceName, env, context),
+    branch: ({ scope }: { scope: string }): Logger =>
+      createLogger(baseLogger, serviceName, env, scope),
 
-    setTraceId: (key: string, value: string) => {
-      traceIds[key] = value;
+    setTraceContext: (traceContext) => {
+      logContext.traceContext = traceContext;
     },
 
-    removeTraceId: (key: string) => {
-      delete traceIds[key];
+    addAdditionalTraceContext: (key, value) => {
+      logContext.traceContext ??= {};
+      logContext.traceContext[key] = value;
     },
 
-    setDdtags: (tags: string) => {
-      ddtags = tags;
+    setInstigator: (instigator) => {
+      logContext.instigator = instigator;
     },
 
-    addExtraMetadata: (key: string, value: any) => {
-      extraMetadata[key] = value;
+    addDdtags: (tags) => {
+      // Ensure tags is an array, even if a single string is provided
+      const newTags = Array.isArray(tags) ? tags : [tags];
+
+      // Validate tags: key must be alphanumeric with optional "_", "-", or ".", and value allows multiple colons
+      const validTags = newTags.filter((tag) => /^[a-zA-Z0-9_.-]+:.+$/.test(tag));
+
+      if (validTags.length === 0) {
+        return;
+      }
+
+      // Ensure base ddtags with service and env
+      logContext.ddtags = `service:${serviceName},env:${env}`;
+
+      // Append valid tags
+      logContext.ddtags += `,${validTags.join(',')}`;
     },
 
-    removeExtraMetadata: (key: string) => {
-      delete extraMetadata[key];
+    addMetadata: (key, value) => {
+      logContext.metadata ??= {};
+      logContext.metadata[key] = value;
     },
 
     getCurrentLogContext: () => ({
-      traceIds: { ...traceIds },
-      extraMetadata: { ...extraMetadata },
-      ddtags,
-      prefix: []
+      traceContext: { ...logContext.traceContext },
+      metadata: { ...logContext.metadata },
+      ddtags: logContext.ddtags,
+      scope: logContext.scope
     })
   };
 };

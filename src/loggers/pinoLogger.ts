@@ -9,10 +9,8 @@ export const createPinoLogger: CreateLogger = (options, parentContext) => {
   const { env, enableDatadog, serviceName, ddApiKey, hostname } = options;
 
   let logContext: LogContext = parentContext ?? {
-    traceIds: { genesis: 'local' },
-    ddtags: `service:${serviceName},env:${env}`,
-    extraMetadata: {},
-    prefix: ['Main']
+    scope: ['Main'],
+    ddtags: `service:${serviceName},env:${env}`
   };
 
   const streams: StreamEntry[] = [];
@@ -55,9 +53,7 @@ export const createPinoLogger: CreateLogger = (options, parentContext) => {
             ...object,
             ...log,
             service: serviceName,
-            traceIds: logContext.traceIds,
-            ddtags: logContext.ddtags,
-            ...logContext.extraMetadata
+            ...logContext
           };
         }
       }
@@ -67,7 +63,7 @@ export const createPinoLogger: CreateLogger = (options, parentContext) => {
 
   const wrapLogFn = (level: LogLevel, logFn: (...args: any[]) => void) => {
     return async (msgOrData: string | Record<string, any>, data?: Record<string, any>) => {
-      const logMessage = createLogMessage(level, logContext.prefix.join('/'), msgOrData, data);
+      const logMessage = createLogMessage(level, logContext.scope.join('/'), msgOrData, data);
       const adaptedPinoMessage = { msg: logMessage.header, ...logMessage };
 
       delete (adaptedPinoMessage as { header?: string }).header;
@@ -76,10 +72,10 @@ export const createPinoLogger: CreateLogger = (options, parentContext) => {
     };
   };
 
-  const branch = (branchOptions: { context: string }) =>
+  const branch = ({ scope }: { scope: string }) =>
     createPinoLogger(options, {
       ...logContext,
-      prefix: [...logContext.prefix, branchOptions.context]
+      scope: [...logContext.scope, scope]
     });
 
   return {
@@ -91,11 +87,34 @@ export const createPinoLogger: CreateLogger = (options, parentContext) => {
     debug: wrapLogFn('debug', baseLogger.debug),
     trace: wrapLogFn('trace', baseLogger.trace),
     branch,
-    setTraceId: (key: string, value: string) => (logContext.traceIds[key] = value),
-    removeTraceId: (key: string) => delete logContext.traceIds[key],
-    setDdtags: (tags: string) => (logContext.ddtags = tags),
-    addExtraMetadata: (key: string, value: any) => (logContext.extraMetadata[key] = value),
-    removeExtraMetadata: (key: string) => delete logContext.extraMetadata[key],
+    setTraceContext: (traceContext) => (logContext.traceContext = traceContext),
+    addAdditionalTraceContext: (key, value) => {
+      logContext.traceContext ??= {};
+      logContext.traceContext[key] = value;
+    },
+    setInstigator: (instigator) => (logContext.instigator = instigator),
+    addDdtags: (tags) => {
+      // Ensure tags is an array, even if a single string is provided
+      const newTags = Array.isArray(tags) ? tags : [tags];
+
+      // Validate tags: key must be alphanumeric with optional "_", "-", or ".", and value allows multiple colons
+      const validTags = newTags.filter((tag) => /^[a-zA-Z0-9_.-]+:.+$/.test(tag));
+
+      if (validTags.length === 0) {
+        baseLogger.warn('No valid ddtags provided. Tags must follow key:value format.');
+        return;
+      }
+
+      // Ensure base ddtags with service and env
+      logContext.ddtags = `service:${serviceName},env:${env}`;
+
+      // Append valid tags
+      logContext.ddtags += `,${validTags.join(',')}`;
+    },
+    addMetadata: (key, value) => {
+      logContext.metadata ??= {};
+      logContext.metadata[key] = value;
+    },
     getCurrentLogContext: () => logContext
   };
 };

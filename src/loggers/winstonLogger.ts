@@ -13,10 +13,8 @@ export const createWinstonLogger: CreateLogger = (options, parentContext) => {
   const { serviceName, lightMode = false, newLineEOL = false, level = 'info', env } = options;
 
   let logContext: LogContext = parentContext ?? {
-    traceIds: { genesis: 'local' },
-    ddtags: `service:${serviceName},env:${env}`,
-    extraMetadata: {},
-    prefix: ['Main']
+    scope: ['Main'],
+    ddtags: `service:${serviceName},env:${env}`
   };
 
   const errorRegex = /(error|fatal)/i;
@@ -39,10 +37,10 @@ export const createWinstonLogger: CreateLogger = (options, parentContext) => {
 
             const logMetadata = !lightMode
               ? {
+                  level: level.replace(/\x1B\[[0-9;]*m/g, ''),
                   service: serviceName,
-                  traceIds: logContext.traceIds,
-                  ddtags: logContext.ddtags,
-                  ...logContext.extraMetadata
+                  timestamp,
+                  ...logContext
                 }
               : {};
 
@@ -68,16 +66,16 @@ export const createWinstonLogger: CreateLogger = (options, parentContext) => {
 
   const wrapLogFn = (level: LogLevel) => {
     return (msgOrData: string | Record<string, any>, data?: Record<string, any>) => {
-      const logMessage = createLogMessage(level, logContext.prefix.join('/'), msgOrData, data);
+      const logMessage = createLogMessage(level, logContext.scope.join('/'), msgOrData, data);
 
       winstonLogger.log(level, logMessage.header, { log: logMessage.log });
     };
   };
 
-  const branch = ({ context }: { context: string }) =>
+  const branch = ({ scope }: { scope: string }) =>
     createWinstonLogger(options, {
       ...logContext,
-      prefix: logContext.prefix.concat(context)
+      scope: logContext.scope.concat(scope)
     });
 
   return {
@@ -89,11 +87,34 @@ export const createWinstonLogger: CreateLogger = (options, parentContext) => {
     debug: wrapLogFn('debug'),
     trace: wrapLogFn('silly'),
     branch,
-    setTraceId: (key, value) => (logContext.traceIds[key] = value),
-    removeTraceId: (key) => delete logContext.traceIds[key],
-    setDdtags: (tags) => (logContext.ddtags = tags),
-    addExtraMetadata: (key, value) => (logContext.extraMetadata[key] = value),
-    removeExtraMetadata: (key) => delete logContext.extraMetadata[key],
+    setTraceContext: (traceContext) => (logContext.traceContext = traceContext),
+    addAdditionalTraceContext: (key, value) => {
+      logContext.traceContext ??= {};
+      logContext.traceContext[key] = value;
+    },
+    setInstigator: (instigator) => (logContext.instigator = instigator),
+    addDdtags: (tags) => {
+      // Ensure tags is an array, even if a single string is provided
+      const newTags = Array.isArray(tags) ? tags : [tags];
+
+      // Validate tags: key must be alphanumeric with optional "_", "-", or ".", and value allows multiple colons
+      const validTags = newTags.filter((tag) => /^[a-zA-Z0-9_.-]+:.+$/.test(tag));
+
+      if (validTags.length === 0) {
+        winstonLogger.warn('No valid ddtags provided. Tags must follow key:value format.');
+        return;
+      }
+
+      // Ensure base ddtags with service and env
+      logContext.ddtags = `service:${serviceName},env:${env}`;
+
+      // Append valid tags
+      logContext.ddtags += `,${validTags.join(',')}`;
+    },
+    addMetadata: (key, value) => {
+      logContext.metadata ??= {};
+      logContext.metadata[key] = value;
+    },
     getCurrentLogContext: () => logContext
   };
 };
