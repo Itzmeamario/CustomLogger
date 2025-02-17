@@ -6,7 +6,7 @@ import { CreateLogger, LogContext, LogLevel } from '../interface/interface.types
 import { createLogMessage } from '../utils/utils';
 
 export const createPinoLogger: CreateLogger = (options, parentContext) => {
-  const { env, enableDatadog, serviceName, ddApiKey, hostname } = options;
+  const { env, serviceName, datadog, hostname } = options;
 
   let logContext: LogContext = parentContext ?? {
     scope: ['Main'],
@@ -22,12 +22,12 @@ export const createPinoLogger: CreateLogger = (options, parentContext) => {
     })
   });
 
-  if (enableDatadog && ddApiKey) {
+  if (datadog?.apiKey) {
     streams.push({
       stream: pino.transport({
         target: 'pino-datadog-transport',
         options: {
-          ddClientConf: { authMethods: { apiKeyAuth: ddApiKey } },
+          ddClientConf: { authMethods: { apiKeyAuth: datadog?.apiKey } },
           ddServerConf: { site: 'datadoghq.com' },
           ddsource: 'nodejs',
           service: serviceName,
@@ -46,7 +46,6 @@ export const createPinoLogger: CreateLogger = (options, parentContext) => {
         log: (object) => {
           const { log }: Record<string, any> = object;
 
-          delete object.header;
           delete object.log;
 
           return {
@@ -64,8 +63,8 @@ export const createPinoLogger: CreateLogger = (options, parentContext) => {
 
   const wrapLogFn = (level: LogLevel, logFn: (...args: any[]) => void) => {
     return async (msgOrData: string | Record<string, any>, data?: Record<string, any>) => {
-      const logMessage = createLogMessage(level, logContext.scope.join('/'), msgOrData, data);
-      const adaptedPinoMessage = { msg: logMessage.header, ...logMessage };
+      const logMessage = createLogMessage(level, msgOrData, data);
+      const adaptedPinoMessage = { msg: `[${logContext.scope.join('/')}]`, ...logMessage };
 
       delete (adaptedPinoMessage as { header?: string }).header;
 

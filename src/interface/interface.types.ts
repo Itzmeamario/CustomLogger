@@ -2,15 +2,6 @@ import { LEVEL, MESSAGE, SPLAT } from 'triple-beam';
 
 export type LogLevel = 'log' | 'info' | 'warn' | 'error' | 'fatal' | 'debug' | 'trace' | 'silly';
 
-export type MetaType = Record<string, any> & {
-  header: string;
-  log: {
-    message: string;
-    logInfo?: Record<string, any> | Record<string, any>[];
-    error?: Error | string | Record<string, any>;
-  };
-};
-
 // Include Winston internal symbols
 type WinstonMeta = {
   [LEVEL]?: string;
@@ -19,7 +10,7 @@ type WinstonMeta = {
 };
 
 // Combine both types
-export type ExtendedMetaType = MetaType & WinstonMeta & Record<string | symbol, unknown>;
+export type ExtendedLog = Log & WinstonMeta & Record<string | symbol, unknown>;
 
 export type LogFunction = (
   message: string | Record<string, any>,
@@ -61,28 +52,32 @@ export interface LoggerOptions {
   env: 'test' | 'staging' | 'production';
   level?: LogLevel;
   serviceName: string;
-  enableDatadog?: boolean;
-  ddApiKey?: string;
   hostname?: string;
   lightMode?: boolean;
   localMode?: boolean;
   newLineEOL?: boolean;
+  datadog?: {
+    apiKey: string;
+    traceURL?: string;
+  };
 }
 
 export type Log = {
   level: string;
   service: string;
   context: string;
-  logInfo?: Record<string, any>;
   timestamp: string;
+  logInfo?: Record<string, any> | Record<string, any>[];
+  error?: Error | string | Record<string, any>;
+  [key: string]: any;
 } & LogContext;
 
 export interface LogContext {
   metadata?: Record<string, any>;
   traceContext?: TraceContext;
   instigator?: Instigator;
-  ddtags: string;
   scope: string[];
+  ddtags: string;
 }
 
 export type CreateLogger = (options: LoggerOptions, parentContext?: LogContext) => Logger;

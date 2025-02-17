@@ -2,7 +2,7 @@ import winston from 'winston';
 import chalk from 'chalk';
 import util from 'util';
 
-import { CreateLogger, LogContext, ExtendedMetaType, LogLevel } from '../interface/interface.types';
+import { CreateLogger, LogContext, ExtendedLog, LogLevel, Log } from '../interface/interface.types';
 import { createLogMessage } from '../utils/utils';
 
 // Helper to clean internal Winston symbols
@@ -10,7 +10,15 @@ const cleanMeta = (meta: Record<string, unknown>): Record<string, unknown> =>
   Object.fromEntries(Object.entries(meta).filter(([key]) => typeof key === 'string'));
 
 export const createWinstonLogger: CreateLogger = (options, parentContext) => {
-  const { serviceName, lightMode = false, newLineEOL = false, level = 'info', env } = options;
+  const {
+    serviceName,
+    lightMode = false,
+    newLineEOL = false,
+    level = 'info',
+    env,
+    datadog,
+    hostname
+  } = options;
 
   let logContext: LogContext = parentContext ?? {
     scope: ['Main'],
@@ -26,50 +34,69 @@ export const createWinstonLogger: CreateLogger = (options, parentContext) => {
         format: winston.format.combine(
           winston.format.colorize(),
           winston.format.timestamp(),
-          winston.format.printf(({ level, message: header, timestamp, ...meta }) => {
-            const messageHeader = `${chalk.green(timestamp)} [${level}]: ${header}\n`;
+          winston.format.printf(({ level, message, timestamp, ...log }) => {
+            const messageHeader = `${chalk.green(timestamp)} [${level}]: [${log.scope}]\n`;
 
-            // Ensure meta is of type ExtendedMetaType
-            const typedMeta = meta as ExtendedMetaType;
+            // Ensure log is properly typed as ExtendedMetaType
+            const typedLog = log as ExtendedLog;
 
-            // Remove Winston symbols for clear logs
-            let { log }: Record<string, any> = cleanMeta(typedMeta);
+            // Clean up meta if needed (e.g., removing Winston-specific symbols)
+            let cleanedLog = cleanMeta(typedLog) as Log;
 
-            const logMetadata = !lightMode
+            const loggableData = lightMode
               ? {
-                  level: level.replace(/\x1B\[[0-9;]*m/g, ''),
-                  service: serviceName,
-                  timestamp,
-                  ...logContext,
-                  scope: logContext.scope.join('/')
+                  message,
+                  ...(cleanedLog.logInfo && { logInfo: cleanedLog.logInfo }),
+                  ...(cleanedLog.error && { error: cleanedLog.error })
                 }
-              : {};
+              : { ...cleanedLog };
 
-            const loggableData = { ...log, ...logMetadata };
-
-            // Extract and log the error stack trace if present
+            // Check if there's an error stack trace and format it
             if (loggableData.error instanceof Error || errorRegex.test(level)) {
               return `${messageHeader}${chalk.red(util.inspect(loggableData, { depth: null }))}${newLineEOL ? '\n' : ''}`;
             }
 
-            const metaString = Object.keys(log).length
+            // Otherwise, format the loggable data for display
+            const metaString = Object.keys(loggableData).length
               ? util.inspect(loggableData, { colors: true, depth: null })
               : '';
 
-            const extraSpace = Object.keys(log).length && newLineEOL ? '\n' : '';
-
-            return `${messageHeader}${metaString}${extraSpace}`;
+            // Return the final formatted message
+            return `${messageHeader}${metaString}${newLineEOL ? '\n' : ''}`;
           })
         )
       })
     ]
   });
 
+  if (datadog && datadog.apiKey && datadog.traceURL) {
+    winstonLogger.add(
+      new winston.transports.Http({
+        host: datadog!.traceURL,
+        path: `/api/v2/logs?dd-api-key=${datadog!.apiKey}&ddsource=nodejs&service=${serviceName}&host=${hostname}`,
+        ssl: true
+      })
+    );
+  }
+
   const wrapLogFn = (level: LogLevel) => {
     return (msgOrData: string | Record<string, any>, data?: Record<string, any>) => {
-      const logMessage = createLogMessage(level, logContext.scope.join('/'), msgOrData, data);
+      const logMessage = createLogMessage(level, msgOrData, data);
 
-      winstonLogger.log(level, logMessage.header, { log: logMessage.log });
+      const modified: any = { ...logMessage };
+      delete modified.message;
+
+      const loggableData = {
+        ...logMessage,
+        level: level.replace(/\x1B\[[0-9;]*m/g, ''),
+        service: serviceName,
+        timestamp: new Date().toISOString(),
+        ...logContext,
+        scope: logContext.scope.join('/')
+      };
+
+      // Log the message using Winston with the loggableData
+      winstonLogger.log(level, logMessage.message, { ...loggableData });
     };
   };
 
