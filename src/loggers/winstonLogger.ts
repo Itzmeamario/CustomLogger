@@ -40,7 +40,8 @@ export const createWinstonLogger: CreateLogger = (options, parentContext) => {
                   level: level.replace(/\x1B\[[0-9;]*m/g, ''),
                   service: serviceName,
                   timestamp,
-                  ...logContext
+                  ...logContext,
+                  scope: logContext.scope.join('/')
                 }
               : {};
 

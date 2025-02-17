@@ -53,7 +53,8 @@ export const createPinoLogger: CreateLogger = (options, parentContext) => {
             ...object,
             ...log,
             service: serviceName,
-            ...logContext
+            ...logContext,
+            scope: logContext.scope.join('/')
           };
         }
       }
