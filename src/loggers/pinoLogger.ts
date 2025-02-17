@@ -101,7 +101,6 @@ export const createPinoLogger: CreateLogger = (options, parentContext) => {
       const validTags = newTags.filter((tag) => /^[a-zA-Z0-9_.-]+:.+$/.test(tag));
 
       if (validTags.length === 0) {
-        baseLogger.warn('No valid ddtags provided. Tags must follow key:value format.');
         return;
       }
 
