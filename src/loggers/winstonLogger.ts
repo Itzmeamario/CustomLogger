@@ -49,7 +49,7 @@ export const createWinstonLogger: CreateLogger = (options, parentContext) => {
                   ...(cleanedLog.logInfo && { logInfo: cleanedLog.logInfo }),
                   ...(cleanedLog.error && { error: cleanedLog.error })
                 }
-              : { ...cleanedLog };
+              : { ...cleanedLog, message };
 
             // Check if there's an error stack trace and format it
             if (loggableData.error instanceof Error || errorRegex.test(level)) {
