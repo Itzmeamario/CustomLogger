@@ -83,11 +83,11 @@ export const createWinstonLogger: CreateLogger = (options, parentContext) => {
     return (msgOrData: string | Record<string, any>, data?: Record<string, any>) => {
       const logMessage = createLogMessage(level, msgOrData, data);
 
-      const modified: any = { ...logMessage };
-      delete modified.message;
+      const sanitizedLog: any = { ...logMessage };
+      delete sanitizedLog.message;
 
       const loggableData = {
-        ...logMessage,
+        ...sanitizedLog,
         level: level.replace(/\x1B\[[0-9;]*m/g, ''),
         service: serviceName,
         timestamp: new Date().toISOString(),
