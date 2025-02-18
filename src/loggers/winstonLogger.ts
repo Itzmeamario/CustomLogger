@@ -2,7 +2,8 @@ import winston from 'winston';
 import chalk from 'chalk';
 import util from 'util';
 
-import { CreateLogger, LogContext, ExtendedLog, LogLevel, Log } from '../interface/interface.types';
+import { CreateLogger } from '../interface/interface';
+import { LogContext, ExtendedLog, LogLevel, Log } from '../interface/interface.types';
 import { createLogMessage } from '../utils/utils';
 
 // Helper to clean internal Winston symbols
@@ -69,15 +70,13 @@ export const createWinstonLogger: CreateLogger = (options, parentContext) => {
     ]
   });
 
-  if (datadog && datadog.apiKey && datadog.traceURL) {
-    winstonLogger.add(
-      new winston.transports.Http({
-        host: datadog!.traceURL,
-        path: `/api/v2/logs?dd-api-key=${datadog!.apiKey}&ddsource=nodejs&service=${serviceName}&host=${hostname}`,
-        ssl: true
-      })
-    );
-  }
+  const datadogTransport = new winston.transports.Http({
+    host: datadog!.traceURL,
+    path: `/api/v2/logs?dd-api-key=${datadog!.apiKey}&ddsource=nodejs&service=${serviceName}&host=${hostname}`,
+    ssl: true
+  });
+
+  if (datadog && datadog.apiKey && datadog.traceURL) winstonLogger.add(datadogTransport);
 
   const wrapLogFn = (level: LogLevel) => {
     return (msgOrData: string | Record<string, any>, data?: Record<string, any>) => {
@@ -114,7 +113,9 @@ export const createWinstonLogger: CreateLogger = (options, parentContext) => {
     fatal: wrapLogFn('error'),
     debug: wrapLogFn('debug'),
     trace: wrapLogFn('silly'),
+
     branch,
+
     setTraceContext: (traceContext) => (logContext.traceContext = traceContext),
     addAdditionalTraceContext: (key, value) => {
       logContext.traceContext ??= {};
@@ -132,6 +133,9 @@ export const createWinstonLogger: CreateLogger = (options, parentContext) => {
       logContext.ddtags += `,${validTags.join(',')}`;
     },
     addMetadata: (key, value) => {
+      if (typeof key !== 'string' || !key.trim()) {
+        throw new Error('Invalid metadata key.');
+      }
       logContext.metadata ??= {};
       logContext.metadata[key] = value;
     },

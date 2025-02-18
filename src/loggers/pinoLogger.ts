@@ -2,7 +2,8 @@ import pino, { StreamEntry } from 'pino';
 import { PinoPretty } from 'pino-pretty';
 import 'pino-datadog-transport';
 
-import { CreateLogger, LogContext, LogLevel } from '../interface/interface.types';
+import { CreateLogger } from '../interface/interface';
+import { LogContext, LogLevel } from '../interface/interface.types';
 import { createLogMessage } from '../utils/utils';
 
 export const createPinoLogger: CreateLogger = (options, parentContext) => {
