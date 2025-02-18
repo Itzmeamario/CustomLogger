@@ -95,15 +95,9 @@ export const createWinstonLogger: CreateLogger = (options, parentContext) => {
       };
 
       // Log the message using Winston with the loggableData
-      winstonLogger.log(level, logMessage.message, { ...loggableData });
+      winstonLogger.log(level, logMessage.message, loggableData);
     };
   };
-
-  const branch = ({ scope }: { scope: string }) =>
-    createWinstonLogger(options, {
-      ...logContext,
-      scope: logContext.scope.concat(scope)
-    });
 
   return {
     log: wrapLogFn('info'),
@@ -114,8 +108,11 @@ export const createWinstonLogger: CreateLogger = (options, parentContext) => {
     debug: wrapLogFn('debug'),
     trace: wrapLogFn('silly'),
 
-    branch,
-
+    branch: ({ scope }: { scope: string }) =>
+      createWinstonLogger(options, {
+        ...logContext,
+        scope: logContext.scope.concat(scope)
+      }),
     setTraceContext: (traceContext) => (logContext.traceContext = traceContext),
     addAdditionalTraceContext: (key, value) => {
       logContext.traceContext ??= {};
