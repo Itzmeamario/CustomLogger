@@ -1,10 +1,13 @@
 import winston from 'winston';
 import chalk from 'chalk';
 import util from 'util';
+import dotenv from 'dotenv';
 
 import { CreateLogger } from '../interface/interface';
 import { LogContext, ExtendedLog, LogLevel, Log } from '../interface/interface.types';
 import { createLogMessage } from '../utils/utils';
+
+dotenv.config();
 
 // Helper to clean internal Winston symbols
 const cleanMeta = (meta: Record<string, unknown>): Record<string, unknown> =>
@@ -14,11 +17,12 @@ export const createWinstonLogger: CreateLogger = (options, parentContext) => {
   const {
     serviceName,
     lightMode = false,
+    localMode = true,
     newLineEOL = false,
     level = 'info',
-    env,
+    env = 'staging',
     datadog,
-    hostname
+    hostname = process.env.HOSTNAME
   } = options;
 
   let logContext: LogContext = parentContext ?? {
@@ -70,13 +74,15 @@ export const createWinstonLogger: CreateLogger = (options, parentContext) => {
     ]
   });
 
-  const datadogTransport = new winston.transports.Http({
-    host: datadog!.traceURL,
-    path: `/api/v2/logs?dd-api-key=${datadog!.apiKey}&ddsource=nodejs&service=${serviceName}&host=${hostname}`,
-    ssl: true
-  });
+  if (!localMode && datadog && datadog.apiKey) {
+    const datadogTransport = new winston.transports.Http({
+      host: 'http-intake.logs.datadoghq.com',
+      path: `/api/v2/logs?dd-api-key=${datadog.apiKey}&ddsource=nodejs&service=${serviceName}&host=${hostname}`,
+      ssl: true
+    });
 
-  if (datadog && datadog.apiKey && datadog.traceURL) winstonLogger.add(datadogTransport);
+    winstonLogger.add(datadogTransport);
+  }
 
   const wrapLogFn = (level: LogLevel) => {
     return (msgOrData: string | Record<string, any>, data?: Record<string, any>) => {
@@ -90,6 +96,7 @@ export const createWinstonLogger: CreateLogger = (options, parentContext) => {
         level: level.replace(/\x1B\[[0-9;]*m/g, ''),
         service: serviceName,
         timestamp: new Date().toISOString(),
+        hostname,
         ...logContext,
         scope: logContext.scope.join('/')
       };

@@ -20,7 +20,7 @@ export interface Logger {
 }
 
 export interface LoggerOptions {
-  env: 'test' | 'staging' | 'production';
+  env?: 'test' | 'staging' | 'production';
   level?: LogLevel;
   serviceName: string;
   hostname?: string;
@@ -29,7 +29,6 @@ export interface LoggerOptions {
   newLineEOL?: boolean;
   datadog?: {
     apiKey: string;
-    traceURL?: string;
   };
 }
 

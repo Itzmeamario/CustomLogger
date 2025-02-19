@@ -7,7 +7,16 @@ import { LogContext, LogLevel } from '../interface/interface.types';
 import { createLogMessage } from '../utils/utils';
 
 export const createPinoLogger: CreateLogger = (options, parentContext) => {
-  const { env, serviceName, datadog, hostname } = options;
+  const {
+    serviceName,
+    // lightMode = false,
+    localMode = true,
+    // newLineEOL = false,
+    level = 'info',
+    env = 'staging',
+    datadog,
+    hostname = process.env.HOSTNAME
+  } = options;
 
   let logContext: LogContext = parentContext ?? {
     scope: ['Main'],
@@ -23,7 +32,7 @@ export const createPinoLogger: CreateLogger = (options, parentContext) => {
     })
   });
 
-  if (datadog?.apiKey) {
+  if (!localMode && datadog && datadog.apiKey) {
     streams.push({
       stream: pino.transport({
         target: 'pino-datadog-transport',
@@ -42,7 +51,7 @@ export const createPinoLogger: CreateLogger = (options, parentContext) => {
 
   const baseLogger = pino(
     {
-      level: options.level ?? 'info',
+      level: level ?? 'info',
       formatters: {
         log: (object) => {
           const { log }: Record<string, any> = object;
