@@ -14,14 +14,17 @@ const cleanMeta = (meta: Record<string, unknown>): Record<string, unknown> =>
   Object.fromEntries(Object.entries(meta).filter(([key]) => typeof key === 'string'));
 
 export const createWinstonLogger: CreateLogger = (options, parentContext) => {
+  if (options.logger !== 'winston') {
+    throw new Error('Invalid logger type for createWinstonLogger. Expected "winston".');
+  }
+
   const {
     serviceName,
     lightMode = false,
     localMode = true,
-    newLineEOL = false,
+    newLineEOL = true,
     level = 'info',
     env = 'staging',
-    datadog,
     hostname = process.env.HOSTNAME
   } = options;
 
@@ -74,14 +77,19 @@ export const createWinstonLogger: CreateLogger = (options, parentContext) => {
     ]
   });
 
-  if (!localMode && datadog && datadog.apiKey) {
-    const datadogTransport = new winston.transports.Http({
-      host: 'http-intake.logs.datadoghq.com',
-      path: `/api/v2/logs?dd-api-key=${datadog.apiKey}&ddsource=nodejs&service=${serviceName}&host=${hostname}`,
-      ssl: true
-    });
+  // Add here strategy for new relic and others
+  if (!localMode && 'datadog' in options) {
+    const { datadog } = options;
 
-    winstonLogger.add(datadogTransport);
+    if (datadog && datadog.apiKey) {
+      const datadogTransport = new winston.transports.Http({
+        host: 'http-intake.logs.datadoghq.com',
+        path: `/api/v2/logs?dd-api-key=${datadog.apiKey}&ddsource=nodejs&service=${serviceName}&host=${hostname}`,
+        ssl: true
+      });
+
+      winstonLogger.add(datadogTransport);
+    }
   }
 
   const wrapLogFn = (level: LogLevel) => {

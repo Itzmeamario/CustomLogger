@@ -7,6 +7,10 @@ import { LogContext, LogLevel } from '../interface/interface.types';
 import { createLogMessage } from '../utils/utils';
 
 export const createPinoLogger: CreateLogger = (options, parentContext) => {
+  if (options.logger !== 'pino') {
+    throw new Error('Invalid logger type for createPinoLogger. Expected "pino".');
+  }
+
   const {
     serviceName,
     // lightMode = false,
@@ -14,7 +18,6 @@ export const createPinoLogger: CreateLogger = (options, parentContext) => {
     // newLineEOL = false,
     level = 'info',
     env = 'staging',
-    datadog,
     hostname = process.env.HOSTNAME
   } = options;
 
@@ -32,12 +35,14 @@ export const createPinoLogger: CreateLogger = (options, parentContext) => {
     })
   });
 
-  if (!localMode && datadog && datadog.apiKey) {
+  if (!localMode && 'datadog' in options) {
+    const { datadog } = options;
+
     streams.push({
       stream: pino.transport({
         target: 'pino-datadog-transport',
         options: {
-          ddClientConf: { authMethods: { apiKeyAuth: datadog?.apiKey } },
+          ddClientConf: { authMethods: { apiKeyAuth: datadog.apiKey } },
           ddServerConf: { site: 'datadoghq.com' },
           ddsource: 'nodejs',
           service: serviceName,

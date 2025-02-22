@@ -19,17 +19,40 @@ export interface Logger {
   getCurrentLogContext: () => LogContext;
 }
 
-export interface LoggerOptions {
+type BaseLoggerOptions = {
   env?: 'test' | 'staging' | 'production';
   level?: LogLevel;
   serviceName: string;
   hostname?: string;
-  lightMode?: boolean;
-  localMode?: boolean;
-  newLineEOL?: boolean;
-  datadog?: {
-    apiKey: string;
-  };
-}
+};
 
-export type CreateLogger = (options: LoggerOptions, parentContext?: LogContext) => Logger;
+type LoggerOptionsType = BaseLoggerOptions &
+  (
+    | {
+        localMode: false;
+        datadog: {
+          apiKey: string;
+        };
+      }
+    | {
+        localMode: true;
+      }
+  );
+
+export type CreateLoggerOptionsMap = {
+  pino: {
+    logger: 'pino';
+  } & LoggerOptionsType;
+  winston: {
+    logger: 'winston';
+    lightMode?: boolean;
+    newLineEOL?: boolean;
+  } & LoggerOptionsType;
+};
+
+export type CreateLoggerOptions<T extends keyof CreateLoggerOptionsMap> = CreateLoggerOptionsMap[T];
+
+export type CreateLogger = <T extends keyof CreateLoggerOptionsMap>(
+  options: CreateLoggerOptions<T>,
+  parentContext?: LogContext
+) => Logger;
