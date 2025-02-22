@@ -1,13 +1,13 @@
 import winston from 'winston';
 import chalk from 'chalk';
 import util from 'util';
-import dotenv from 'dotenv';
 
 import { CreateLogger } from '../interface/interface';
 import { LogContext, ExtendedLog, LogLevel, Log } from '../interface/interface.types';
 import { createLogMessage } from '../utils/utils';
+import { createTransportFactory } from '../factory/transportFactory';
 
-dotenv.config();
+// https://www.npmjs.com/package/redact-secrets
 
 // Helper to clean internal Winston symbols
 const cleanMeta = (meta: Record<string, unknown>): Record<string, unknown> =>
@@ -25,7 +25,7 @@ export const createWinstonLogger: CreateLogger = (options, parentContext) => {
     newLineEOL = true,
     level = 'info',
     env = 'staging',
-    hostname = process.env.HOSTNAME
+    hostname
   } = options;
 
   let logContext: LogContext = parentContext ?? {
@@ -77,19 +77,27 @@ export const createWinstonLogger: CreateLogger = (options, parentContext) => {
     ]
   });
 
-  // Add here strategy for new relic and others
-  if (!localMode && 'datadog' in options) {
-    const { datadog } = options;
+  // Strategy for all transports (datadog, new relic, etc)
+  winstonLogger.log('info', 'Adding transports', { scope: 'Initializer' });
+  if (!localMode && 'transports' in options) {
+    const transportFactory = createTransportFactory(
+      'winston',
+      options.transports,
+      serviceName,
+      hostname
+    );
 
-    if (datadog && datadog.apiKey) {
-      const datadogTransport = new winston.transports.Http({
-        host: 'http-intake.logs.datadoghq.com',
-        path: `/api/v2/logs?dd-api-key=${datadog.apiKey}&ddsource=nodejs&service=${serviceName}&host=${hostname}`,
-        ssl: true
+    const transports = transportFactory.getTransports();
+
+    transports.forEach((v, k) => {
+      winstonLogger.add(v as winston.transports.HttpTransportInstance);
+      winstonLogger.log('info', `Added transport ${k} for ${logContext.scope}`, {
+        scope: 'Initializer',
+        logInfo: {
+          transport: k
+        }
       });
-
-      winstonLogger.add(datadogTransport);
-    }
+    });
   }
 
   const wrapLogFn = (level: LogLevel) => {

@@ -23,28 +23,40 @@ type BaseLoggerOptions = {
   env?: 'test' | 'staging' | 'production';
   level?: LogLevel;
   serviceName: string;
-  hostname?: string;
+  hostname: string;
 };
+
+export type Transports =
+  | {
+      datadog: {
+        apiKey: string;
+      };
+    }
+  | {
+      newRelic: {
+        apiKey: string;
+      };
+    };
 
 type LoggerOptionsType = BaseLoggerOptions &
   (
     | {
         localMode: false;
-        datadog: {
-          apiKey: string;
-        };
+        transports: Transports;
       }
     | {
         localMode: true;
       }
   );
 
+export type LoggersName = 'pino' | 'winston';
+
 export type CreateLoggerOptionsMap = {
   pino: {
-    logger: 'pino';
+    logger: Extract<LoggersName, 'pino'>;
   } & LoggerOptionsType;
   winston: {
-    logger: 'winston';
+    logger: Extract<LoggersName, 'winston'>;
     lightMode?: boolean;
     newLineEOL?: boolean;
   } & LoggerOptionsType;
