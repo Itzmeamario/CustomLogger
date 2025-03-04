@@ -84,10 +84,10 @@ export const createWinstonLogger: CreateLogger = (options, parentContext) => {
       logger: 'winston',
       transportsConfig: {
         datadog: {
-          apiKey: process.env.DD_API_KEY || 'yolo'
+          apiKey: process.env.DD_API_KEY || ''
         },
         newRelic: {
-          apiKey: process.env.NR_API_KEY || 'yolo'
+          apiKey: process.env.NR_API_KEY || ''
         }
       },
       serviceName,

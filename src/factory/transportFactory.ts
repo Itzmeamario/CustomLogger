@@ -28,7 +28,7 @@ export const createTransportFactory: CreateTransportFactory = (options) => {
             ddsource: 'nodejs',
             service: serviceName,
             hostname,
-            ddtags: ddtags,
+            ddtags,
             sendImmediate: true
           }
         });
