@@ -2,7 +2,7 @@ import winston from 'winston';
 import chalk from 'chalk';
 import util from 'util';
 
-import { CreateLogger } from '../interface/interface';
+import { CreateLogger, CreateLoggerOptionsMap } from '../interface/interface';
 import { LogContext, ExtendedLog, LogLevel, Log } from '../interface/interface.types';
 import { createLogMessage } from '../utils/utils';
 import { createTransportFactory } from '../factory/transportFactory';
@@ -10,8 +10,8 @@ import { createTransportFactory } from '../factory/transportFactory';
 // https://www.npmjs.com/package/redact-secrets
 
 // Helper to clean internal Winston symbols
-const cleanMeta = (meta: Record<string, unknown>): Record<string, unknown> =>
-  Object.fromEntries(Object.entries(meta).filter(([key]) => typeof key === 'string'));
+const cleanMeta = (meta: ExtendedLog): Log =>
+  Object.fromEntries(Object.entries(meta).filter(([key]) => typeof key === 'string')) as Log;
 
 export const createWinstonLogger: CreateLogger = (options, parentContext) => {
   if (options.logger !== 'winston') {
@@ -26,7 +26,7 @@ export const createWinstonLogger: CreateLogger = (options, parentContext) => {
     level = 'info',
     env = 'staging',
     hostname
-  } = options;
+  } = options as CreateLoggerOptionsMap['winston'];
 
   let logContext: LogContext = parentContext ?? {
     scope: ['Main'],
@@ -42,14 +42,14 @@ export const createWinstonLogger: CreateLogger = (options, parentContext) => {
         format: winston.format.combine(
           winston.format.colorize(),
           winston.format.timestamp(),
-          winston.format.printf(({ level, message, timestamp, ...log }) => {
-            const messageHeader = `${chalk.green(timestamp)} [${level}]: [${log.scope}]\n`;
+          winston.format.printf(({ level, message, timestamp, ...meta }) => {
+            const messageHeader = `${chalk.green(timestamp)} [${level}]: [${meta.scope}]\n`;
 
-            // Ensure log is properly typed as ExtendedMetaType
-            const typedLog = log as ExtendedLog;
+            // Ensure meta is properly typed as ExtendedLog
+            const typedLog = meta as ExtendedLog;
 
             // Clean up meta if needed (e.g., removing Winston-specific symbols)
-            let cleanedLog = cleanMeta(typedLog) as Log;
+            let cleanedLog = cleanMeta(typedLog);
 
             const loggableData = lightMode
               ? {
@@ -79,13 +79,20 @@ export const createWinstonLogger: CreateLogger = (options, parentContext) => {
 
   // Strategy for all transports (datadog, new relic, etc)
   winstonLogger.log('info', 'Adding transports', { scope: 'Initializer' });
-  if (!localMode && 'transports' in options) {
-    const transportFactory = createTransportFactory(
-      'winston',
-      options.transports,
+  if (!localMode) {
+    const transportFactory = createTransportFactory<'winston'>({
+      logger: 'winston',
+      transportsConfig: {
+        datadog: {
+          apiKey: process.env.DD_API_KEY || 'yolo'
+        },
+        newRelic: {
+          apiKey: process.env.NR_API_KEY || 'yolo'
+        }
+      },
       serviceName,
       hostname
-    );
+    });
 
     const transports = transportFactory.getTransports();
 
@@ -104,7 +111,8 @@ export const createWinstonLogger: CreateLogger = (options, parentContext) => {
     return (msgOrData: string | Record<string, any>, data?: Record<string, any>) => {
       const logMessage = createLogMessage(level, msgOrData, data);
 
-      const sanitizedLog: any = { ...logMessage };
+      const sanitizedLog: Partial<typeof logMessage> = { ...logMessage };
+
       delete sanitizedLog.message;
 
       const loggableData = {
@@ -131,17 +139,21 @@ export const createWinstonLogger: CreateLogger = (options, parentContext) => {
     debug: wrapLogFn('debug'),
     trace: wrapLogFn('silly'),
 
-    branch: ({ scope }: { scope: string }) =>
+    branch: ({ scope }) =>
       createWinstonLogger(options, {
         ...logContext,
         scope: logContext.scope.concat(scope)
       }),
-    setTraceContext: (traceContext) => (logContext.traceContext = traceContext),
+    setTraceContext: (traceContext) => {
+      logContext.traceContext = traceContext;
+    },
     addAdditionalTraceContext: (key, value) => {
       logContext.traceContext ??= {};
       logContext.traceContext[key] = value;
     },
-    setInstigator: (instigator) => (logContext.instigator = instigator),
+    setInstigator: (instigator) => {
+      logContext.instigator = instigator;
+    },
     addDdtags: (tags) => {
       // Ensure tags is an array, even if a single string is provided
       const newTags = Array.isArray(tags) ? tags : [tags];

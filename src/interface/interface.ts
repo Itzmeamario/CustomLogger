@@ -1,6 +1,6 @@
 import { LogFunction, LogContext, TraceContext, Instigator, LogLevel } from './interface.types';
 
-export interface Logger {
+export type Logger = {
   log: LogFunction;
   info: LogFunction;
   warn: LogFunction;
@@ -17,54 +17,33 @@ export interface Logger {
   addDdtags: (tags: string | string[]) => void;
   addMetadata: (key: string, value: any) => void;
   getCurrentLogContext: () => LogContext;
-}
+};
 
 type BaseLoggerOptions = {
   env?: 'test' | 'staging' | 'production';
   level?: LogLevel;
   serviceName: string;
   hostname: string;
+  localMode?: boolean;
 };
-
-export type Transports =
-  | {
-      datadog: {
-        apiKey: string;
-      };
-    }
-  | {
-      newRelic: {
-        apiKey: string;
-      };
-    };
-
-type LoggerOptionsType = BaseLoggerOptions &
-  (
-    | {
-        localMode: false;
-        transports: Transports;
-      }
-    | {
-        localMode: true;
-      }
-  );
 
 export type LoggersName = 'pino' | 'winston';
 
 export type CreateLoggerOptionsMap = {
-  pino: {
-    logger: Extract<LoggersName, 'pino'>;
-  } & LoggerOptionsType;
-  winston: {
-    logger: Extract<LoggersName, 'winston'>;
-    lightMode?: boolean;
-    newLineEOL?: boolean;
-  } & LoggerOptionsType;
+  [K in LoggersName]: {
+    logger: K;
+  } & BaseLoggerOptions &
+    (K extends 'winston'
+      ? {
+          lightMode?: boolean;
+          newLineEOL?: boolean;
+        }
+      : {});
 };
 
-export type CreateLoggerOptions<T extends keyof CreateLoggerOptionsMap> = CreateLoggerOptionsMap[T];
+export type CreateLoggerOptions<T extends LoggersName> = CreateLoggerOptionsMap[T];
 
-export type CreateLogger = <T extends keyof CreateLoggerOptionsMap>(
+export type CreateLogger = <T extends LoggersName>(
   options: CreateLoggerOptions<T>,
   parentContext?: LogContext
 ) => Logger;

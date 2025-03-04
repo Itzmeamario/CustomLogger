@@ -5,6 +5,7 @@ import 'pino-datadog-transport';
 import { CreateLogger } from '../interface/interface';
 import { LogContext, LogLevel } from '../interface/interface.types';
 import { createLogMessage } from '../utils/utils';
+import { createTransportFactory } from '../factory/transportFactory';
 
 export const createPinoLogger: CreateLogger = (options, parentContext) => {
   if (options.logger !== 'pino') {
@@ -18,7 +19,7 @@ export const createPinoLogger: CreateLogger = (options, parentContext) => {
     // newLineEOL = false,
     level = 'info',
     env = 'staging',
-    hostname = process.env.HOSTNAME
+    hostname
   } = options;
 
   let logContext: LogContext = parentContext ?? {
@@ -35,22 +36,29 @@ export const createPinoLogger: CreateLogger = (options, parentContext) => {
     })
   });
 
-  if (!localMode && 'datadog' in options) {
-    const { datadog } = options;
-
-    streams.push({
-      stream: pino.transport({
-        target: 'pino-datadog-transport',
-        options: {
-          ddClientConf: { authMethods: { apiKeyAuth: datadog.apiKey } },
-          ddServerConf: { site: 'datadoghq.com' },
-          ddsource: 'nodejs',
-          service: serviceName,
-          hostname: hostname || 'unknown-host',
-          ddtags: logContext.ddtags,
-          sendImmediate: true
+  if (!localMode) {
+    const transportFactory = createTransportFactory<'pino'>({
+      logger: 'pino',
+      transportsConfig: {
+        datadog: {
+          apiKey: process.env.DD_API_KEY || 'yolo'
         }
-      })
+      },
+      serviceName,
+      hostname,
+      ddtags: logContext.ddtags
+    });
+
+    const transports = transportFactory.getTransports();
+
+    transports.forEach((v, k) => {
+      streams.push(v as StreamEntry);
+      console.log(`Added transport ${k} for ${logContext.scope}`, {
+        scope: 'Initializer',
+        logInfo: {
+          transport: k
+        }
+      });
     });
   }
 
